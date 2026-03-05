@@ -4,13 +4,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.example.prakpm_2417052021.ui.theme.PrakPM_2417052021Theme
 
 class MainActivity : ComponentActivity() {
@@ -20,11 +22,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             PrakPM_2417052021Theme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Reval",
-                        npm = "2417052021",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                    Column(modifier = Modifier.padding(innerPadding)) {
+                        Greeting()
+                        WorkoutList()
+                    }
                 }
             }
         }
@@ -32,17 +33,46 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier, npm: String) {
+fun Greeting() {
     Text(
-        text = "Halo, nama saya $name, NPM saya $npm!",
-        modifier = modifier
+        text = "Selamat datang di Jadwalin, berikut rekomendasi latihan untuk menjaga kesehatanmu!",
+        modifier = Modifier.padding(16.dp)
     )
 }
 
-@Preview(showBackground = true)
+data class Workout(val nama: String,val deskripsi: String,val imageRes: Int)
+
+object WorkoutSource {
+    val workouts = listOf(
+        Workout("Push Up", "Latihan untuk otot dada dan tricep", R.drawable.pushup),
+        Workout("Sit Up", "Latihan untuk otot perut", R.drawable.situp),
+        Workout("Pull Up", "Latihan untuk otot punggung", R.drawable.pullup),
+        Workout("Plank", "Latihan untuk kekuatan core", R.drawable.plank),
+        Workout("Squat", "Latihan untuk otot paha dan kaki", R.drawable.squat)
+    )
+}
+
 @Composable
-fun GreetingPreview() {
-    PrakPM_2417052021Theme {
-        Greeting(name = "Revaldo", npm = "")
+fun WorkoutList() {
+    Column {
+        WorkoutSource.workouts.forEach { workout ->
+            WorkoutItem(workout)
+        }
+    }
+}
+
+@Composable
+fun WorkoutItem(workout: Workout) {
+    Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Image(
+            painter = painterResource(id = workout.imageRes),
+            contentDescription = workout.nama,
+            modifier = Modifier.size(80.dp)
+        )
+        Column(
+            modifier = Modifier.padding(start = 16.dp)        ) {
+            Text(text = workout.nama)
+            Text(text = workout.deskripsi)
+        }
     }
 }
