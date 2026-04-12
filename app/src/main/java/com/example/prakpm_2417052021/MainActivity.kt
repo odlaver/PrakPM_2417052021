@@ -8,11 +8,22 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.prakpm_2417052021.ui.theme.PrakPM_2417052021Theme
@@ -65,14 +76,28 @@ fun WorkoutList() {
 
 @Composable
 fun WorkoutItem(workout: Workout) {
+    var isFavorite by remember { mutableStateOf(false) }
+
     Row(modifier = Modifier
         .fillMaxWidth()
         .padding(16.dp)) {
-        Image(
-            painter = painterResource(id = workout.imageRes),
-            contentDescription = workout.nama,
-            modifier = Modifier.size(width = 120.dp, height = 120.dp)
-        )
+        Box {
+            Image(
+                painter = painterResource(id = workout.imageRes),
+                contentDescription = workout.nama,
+                modifier = Modifier.size(width = 120.dp, height = 120.dp)
+            )
+            IconButton(
+                onClick = { isFavorite = !isFavorite },
+                modifier = Modifier.align(Alignment.TopEnd)
+            ) {
+                Icon(
+                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = "Favorite",
+                    tint = if (isFavorite) Color.Red else Color.White
+                )
+            }
+        }
         Column(
             modifier = Modifier.padding(start = 16.dp)        ) {
             Text(text = workout.nama)
