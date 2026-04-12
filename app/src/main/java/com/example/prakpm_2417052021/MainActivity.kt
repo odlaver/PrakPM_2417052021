@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,8 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.prakpm_2417052021.ui.theme.PrakPM_2417052021Theme
@@ -70,11 +71,13 @@ fun WorkoutList(modifier: Modifier = Modifier) {
         item {
             Text(
                 text = "Selamat datang di Jadwalin, berikut rekomendasi latihan untuk menjaga kesehatanmu!",
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
             Text(
                 text = "Rekomendasi Latihan",
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             LazyRow(
@@ -87,7 +90,8 @@ fun WorkoutList(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "Daftar Latihan Lengkap",
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
@@ -102,23 +106,28 @@ fun WorkoutRowItem(workout: Workout) {
     Card(
         shape = RoundedCornerShape(8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.width(160.dp)
     ) {
         Column {
             Image(
                 painter = painterResource(id = workout.imageRes),
                 contentDescription = workout.nama,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(100.dp)
+                    .height(height = 135.dp)
+                    .padding(all = 12.dp)
             )
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
                     text = workout.nama,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Text(
                     text = workout.deskripsi,
+                    style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -134,6 +143,7 @@ fun WorkoutItem(workout: Workout) {
     Card(
         shape = RoundedCornerShape(8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(modifier = Modifier
@@ -143,6 +153,7 @@ fun WorkoutItem(workout: Workout) {
                 Image(
                     painter = painterResource(id = workout.imageRes),
                     contentDescription = workout.nama,
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier.size(width = 120.dp, height = 120.dp)
                 )
                 IconButton(
@@ -152,15 +163,22 @@ fun WorkoutItem(workout: Workout) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         contentDescription = "Favorite",
-                        tint = if (isFavorite) Color.Red else Color.White
+                        tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             Column(
                 modifier = Modifier.padding(start = 16.dp)
             ) {
-                Text(text = workout.nama, fontWeight = FontWeight.Bold)
-                Text(text = workout.deskripsi)
+                Text(
+                    text = workout.nama, 
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = workout.deskripsi,
+                    style = MaterialTheme.typography.bodyMedium
+                )
                 Button(onClick = { }, modifier = Modifier.padding(top = 8.dp)) {
                     Text("Mulai Latihan")
                 }
