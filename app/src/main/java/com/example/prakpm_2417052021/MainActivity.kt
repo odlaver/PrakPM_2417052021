@@ -1,11 +1,23 @@
 package com.example.prakpm_2417052021
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -25,7 +37,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,18 +49,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import coil.compose.AsyncImage
+import com.example.prakpm_2417052021.model.Workout
+import com.example.prakpm_2417052021.network.RetrofitClient
 import com.example.prakpm_2417052021.ui.theme.PrakPM_2417052021Theme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.clickable
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,7 +74,7 @@ class MainActivity : ComponentActivity() {
             PrakPM_2417052021Theme {
                 val navController = rememberNavController()
                 val snackbarHostState = remember { SnackbarHostState() }
-                
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -72,43 +90,144 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-data class Workout(val nama: String,val deskripsi: String,val imageRes: Int)
-
-object WorkoutSource {
-    val workouts = listOf(
-        Workout("Push Up", "Latihan untuk membentuk otot dada dan tricep", R.drawable.pushup),
-        Workout("Sit Up", "Latihan untuk membentuk otot perut", R.drawable.situp),
-        Workout("Pull Up", "Latihan untuk membentuk otot punggung", R.drawable.pullup),
-        Workout("Plank", "Latihan untuk kekuatan bagian core", R.drawable.plank),
-        Workout("Squat", "Latihan untuk membentuk otot paha dan kaki", R.drawable.squat)
-    )
-}
-
 @Composable
 fun AppNavigation(
-    navController: androidx.navigation.NavHostController,
+    navController: NavHostController,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier
 ) {
+    var workouts by remember { mutableStateOf<List<Workout>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isError by remember { mutableStateOf(false) }
+    var reloadKey by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(reloadKey) {
+        isLoading = true
+        isError = false
+        try {
+            workouts = RetrofitClient.instance.getWorkouts()
+        } catch (_: Exception) {
+            workouts = emptyList()
+            isError = true
+        } finally {
+            isLoading = false
+        }
+    }
+
     NavHost(navController = navController, startDestination = "home", modifier = modifier) {
         composable("home") {
-            WorkoutList(navController = navController)
+            WorkoutList(
+                workouts = workouts,
+                isLoading = isLoading,
+                isError = isError,
+                onRetry = { reloadKey++ },
+                navController = navController
+            )
         }
         composable(
             route = "detail/{workoutName}",
             arguments = listOf(navArgument("workoutName") { type = NavType.StringType })
         ) { backStackEntry ->
-            val workoutName = backStackEntry.arguments?.getString("workoutName") ?: ""
-            val workout = WorkoutSource.workouts.find { it.nama == workoutName }
+            val workoutName = Uri.decode(backStackEntry.arguments?.getString("workoutName") ?: "")
+            val workout = workouts.find { it.nama == workoutName }
             if (workout != null) {
-                DetailScreen(workout = workout, snackbarHostState = snackbarHostState, navController = navController)
+                DetailScreen(
+                    workout = workout,
+                    snackbarHostState = snackbarHostState,
+                    navController = navController
+                )
+            } else {
+                DetailNotFound(navController = navController)
             }
         }
     }
 }
 
 @Composable
-fun WorkoutList(modifier: Modifier = Modifier, navController: NavController) {
+fun WorkoutList(
+    workouts: List<Workout>,
+    isLoading: Boolean,
+    isError: Boolean,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    navController: NavController
+) {
+    when {
+        isLoading -> LoadingScreen(modifier = modifier)
+        isError -> ErrorScreen(onRetry = onRetry, modifier = modifier)
+        else -> WorkoutContent(
+            workouts = workouts,
+            modifier = modifier,
+            navController = navController
+        )
+    }
+}
+
+@Composable
+fun LoadingScreen(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+fun ErrorScreen(onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Gagal Memuat Data",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Periksa koneksi internet atau link JSON API.",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onRetry) {
+            Text("Coba Lagi")
+        }
+    }
+}
+
+@Composable
+fun DetailNotFound(navController: NavController) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Data latihan tidak ditemukan",
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = { navController.popBackStack() }) {
+            Text("Kembali")
+        }
+    }
+}
+
+@Composable
+fun WorkoutContent(
+    workouts: List<Workout>,
+    modifier: Modifier = Modifier,
+    navController: NavController
+) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -126,10 +245,8 @@ fun WorkoutList(modifier: Modifier = Modifier, navController: NavController) {
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(WorkoutSource.workouts) { workout ->
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(workouts) { workout ->
                     WorkoutRowItem(workout, navController)
                 }
             }
@@ -141,10 +258,26 @@ fun WorkoutList(modifier: Modifier = Modifier, navController: NavController) {
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
-        items(WorkoutSource.workouts) { workout ->
+        items(workouts) { workout ->
             WorkoutItem(workout, navController)
         }
     }
+}
+
+@Composable
+fun WorkoutImage(
+    workout: Workout,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop
+) {
+    AsyncImage(
+        model = workout.imageUrl,
+        contentDescription = workout.nama,
+        placeholder = painterResource(R.drawable.loading),
+        error = painterResource(R.drawable.error),
+        contentScale = contentScale,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -155,17 +288,15 @@ fun WorkoutRowItem(workout: Workout, navController: NavController) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier
             .width(160.dp)
-            .clickable { navController.navigate("detail/${workout.nama}") }
+            .clickable { navController.navigate("detail/${Uri.encode(workout.nama)}") }
     ) {
         Column {
-            Image(
-                painter = painterResource(id = workout.imageRes),
-                contentDescription = workout.nama,
-                contentScale = ContentScale.Crop,
+            WorkoutImage(
+                workout = workout,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(height = 135.dp)
-                    .padding(all = 12.dp)
+                    .height(135.dp)
+                    .padding(12.dp)
             )
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
@@ -194,14 +325,15 @@ fun WorkoutItem(workout: Workout, navController: NavController) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
             Box {
-                Image(
-                    painter = painterResource(id = workout.imageRes),
-                    contentDescription = workout.nama,
-                    contentScale = ContentScale.Fit,
+                WorkoutImage(
+                    workout = workout,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier.size(width = 120.dp, height = 120.dp)
                 )
                 IconButton(
@@ -215,11 +347,9 @@ fun WorkoutItem(workout: Workout, navController: NavController) {
                     )
                 }
             }
-            Column(
-                modifier = Modifier.padding(start = 16.dp)
-            ) {
+            Column(modifier = Modifier.padding(start = 16.dp)) {
                 Text(
-                    text = workout.nama, 
+                    text = workout.nama,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -228,7 +358,7 @@ fun WorkoutItem(workout: Workout, navController: NavController) {
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Button(
-                    onClick = { navController.navigate("detail/${workout.nama}") },
+                    onClick = { navController.navigate("detail/${Uri.encode(workout.nama)}") },
                     modifier = Modifier.padding(top = 8.dp)
                 ) {
                     Text("Detail Latihan")
@@ -239,7 +369,11 @@ fun WorkoutItem(workout: Workout, navController: NavController) {
 }
 
 @Composable
-fun DetailScreen(workout: Workout, snackbarHostState: SnackbarHostState, navController: NavController) {
+fun DetailScreen(
+    workout: Workout,
+    snackbarHostState: SnackbarHostState,
+    navController: NavController
+) {
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -249,10 +383,9 @@ fun DetailScreen(workout: Workout, snackbarHostState: SnackbarHostState, navCont
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Image(
-            painter = painterResource(id = workout.imageRes),
-            contentDescription = workout.nama,
-            contentScale = ContentScale.Fit,
+        WorkoutImage(
+            workout = workout,
+            contentScale = ContentScale.Crop,
             modifier = Modifier.size(200.dp)
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -267,7 +400,7 @@ fun DetailScreen(workout: Workout, snackbarHostState: SnackbarHostState, navCont
             style = MaterialTheme.typography.bodyLarge
         )
         Spacer(modifier = Modifier.height(24.dp))
-        
+
         Button(
             onClick = {
                 scope.launch {
@@ -292,9 +425,9 @@ fun DetailScreen(workout: Workout, snackbarHostState: SnackbarHostState, navCont
                 Text("Mulai Latihan")
             }
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Button(
             onClick = { navController.popBackStack() },
             modifier = Modifier.fillMaxWidth(),

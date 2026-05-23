@@ -1,0 +1,27 @@
+[
+  {
+    "nama": "Push Up",
+    "deskripsi": "Latihan untuk melatih otot dada, bahu, dan tricep",
+    "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Performing_pushups.jpg"
+  },
+  {
+    "nama": "Sit Up",
+    "deskripsi": "Latihan untuk memperkuat otot perut",
+    "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Situps_130102-A-WU248-016.jpg"
+  },
+  {
+    "nama": "Pull Up",
+    "deskripsi": "Latihan untuk melatih otot punggung dan lengan",
+    "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Pull-ups_(6142095).jpg"
+  },
+  {
+    "nama": "Plank",
+    "deskripsi": "Latihan untuk melatih kekuatan core tubuh",
+    "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Plank.jpg"
+  },
+  {
+    "nama": "Squat",
+    "deskripsi": "Latihan untuk melatih otot paha dan kaki",
+    "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/A_U.S._Air_Force_Airman_performs_a_squat_exercise.jpg"
+  }
+]
