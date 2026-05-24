@@ -1,6 +1,6 @@
-package com.example.prakpm_2417052021.network
+package com.example.prakpm_2417052021.data.api
 
-import com.example.prakpm_2417052021.model.Workout
+import com.example.prakpm_2417052021.data.model.Workout
 import retrofit2.http.GET
 
 interface ApiService {

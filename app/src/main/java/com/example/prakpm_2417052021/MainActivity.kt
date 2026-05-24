@@ -62,8 +62,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import coil.compose.AsyncImage
-import com.example.prakpm_2417052021.model.Workout
-import com.example.prakpm_2417052021.network.RetrofitClient
+import com.example.prakpm_2417052021.data.model.Workout
+import com.example.prakpm_2417052021.data.repository.WorkoutRepository
 import com.example.prakpm_2417052021.ui.theme.PrakPM_2417052021Theme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -98,6 +98,7 @@ fun AppNavigation(
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier
 ) {
+    val repository = remember { WorkoutRepository() }
     var workouts by remember { mutableStateOf<List<Workout>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var isError by remember { mutableStateOf(false) }
@@ -107,7 +108,8 @@ fun AppNavigation(
         isLoading = true
         isError = false
         try {
-            workouts = RetrofitClient.instance.getWorkouts()
+            workouts = repository.getWorkouts()
+            isError = workouts.isEmpty()
         } catch (_: Exception) {
             workouts = emptyList()
             isError = true
