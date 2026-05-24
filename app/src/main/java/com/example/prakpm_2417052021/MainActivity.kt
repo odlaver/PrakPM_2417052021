@@ -46,9 +46,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -154,7 +156,7 @@ fun WorkoutList(
 ) {
     when {
         isLoading -> LoadingScreen(modifier = modifier)
-        isError -> ErrorScreen(onRetry = onRetry, modifier = modifier)
+        isError || workouts.isEmpty() -> ErrorScreen(onRetry = onRetry, modifier = modifier)
         else -> WorkoutContent(
             workouts = workouts,
             modifier = modifier,
@@ -185,12 +187,13 @@ fun ErrorScreen(onRetry: () -> Unit, modifier: Modifier = Modifier) {
         Text(
             text = "Gagal Memuat Data",
             style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.error,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Periksa koneksi internet atau link JSON API.",
+            text = "Pastikan koneksi internet Anda menyala.",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center
         )
@@ -386,7 +389,10 @@ fun DetailScreen(
         WorkoutImage(
             workout = workout,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.size(200.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clip(RoundedCornerShape(12.dp))
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
