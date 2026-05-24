@@ -8,11 +8,29 @@ import androidx.compose.ui.graphics.Color
 
 private val DefaultColorScheme = lightColorScheme(
     primary = CustomPrimary,
+    onPrimary = Color.White,
+    primaryContainer = CustomPrimaryContainer,
+    onPrimaryContainer = CustomOnSurface,
     secondary = CustomSecondary,
+    onSecondary = CustomOnSurface,
+    secondaryContainer = CustomSecondaryContainer,
+    onSecondaryContainer = CustomOnSurface,
     tertiary = CustomTertiary,
+    onTertiary = Color.White,
+    tertiaryContainer = CustomTertiaryContainer,
+    onTertiaryContainer = CustomOnSurface,
     background = CustomBackground,
-    surface = CustomBackground,
-    surfaceVariant = CustomTertiary
+    onBackground = CustomOnSurface,
+    surface = CustomSurface,
+    onSurface = CustomOnSurface,
+    surfaceVariant = CustomSurfaceVariant,
+    onSurfaceVariant = CustomOnSurfaceVariant,
+    outline = CustomOutline,
+    outlineVariant = CustomOutlineVariant,
+    error = Color(0xFFB3261E),
+    onError = Color.White,
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002)
 )
 
 @Composable

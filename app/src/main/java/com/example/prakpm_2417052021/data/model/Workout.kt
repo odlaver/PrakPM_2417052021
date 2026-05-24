@@ -10,5 +10,23 @@ data class Workout(
     val deskripsi: String,
 
     @SerializedName("image_url")
-    val imageUrl: String
+    val imageUrl: String,
+
+    @SerializedName(value = "kategori", alternate = ["category"])
+    val category: String? = null,
+
+    @SerializedName(value = "durasi_menit", alternate = ["duration_minutes"])
+    val durationMinutes: Int? = null,
+
+    @SerializedName("level")
+    val level: String? = null,
+
+    @SerializedName("target")
+    val target: String? = null,
+
+    @SerializedName("video_url")
+    val videoUrl: String? = null,
+
+    @SerializedName("steps")
+    val steps: List<String>? = null
 )

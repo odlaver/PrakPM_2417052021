@@ -1,27 +1,107 @@
 [
   {
     "nama": "Push Up",
-    "deskripsi": "Latihan untuk melatih otot dada, bahu, dan tricep",
-    "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Performing_pushups.jpg"
+    "deskripsi": "Latihan bodyweight untuk membangun kekuatan dada, bahu, dan tricep.",
+    "kategori": "Tubuh Atas",
+    "durasi_menit": 6,
+    "level": "Ringan",
+    "target": "Dada, bahu, tricep",
+    "image_url": "https://i.ibb.co/4Zz7gDZS/pushup.png",
+    "video_url": "https://www.youtube.com/results?search_query=push+up+tutorial+gerakan+singkat",
+    "steps": [
+      "Letakkan telapak tangan sejajar bahu dan luruskan tubuh.",
+      "Turunkan dada perlahan sambil menjaga siku tetap stabil.",
+      "Dorong tubuh naik kembali tanpa mengangkat pinggul terlalu tinggi."
+    ]
   },
   {
     "nama": "Sit Up",
-    "deskripsi": "Latihan untuk memperkuat otot perut",
-    "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Situps_130102-A-WU248-016.jpg"
+    "deskripsi": "Latihan penguatan otot perut yang cocok untuk sesi core singkat.",
+    "kategori": "Core",
+    "durasi_menit": 5,
+    "level": "Ringan",
+    "target": "Perut dan fleksor pinggul",
+    "image_url": "https://i.ibb.co/0p4GtBHb/situp.png",
+    "video_url": "https://www.youtube.com/results?search_query=sit+up+tutorial+gerakan+singkat",
+    "steps": [
+      "Tekuk lutut dan posisikan telapak kaki menapak.",
+      "Angkat badan memakai otot perut, bukan menarik leher.",
+      "Turunkan badan perlahan agar gerakan tetap terkontrol."
+    ]
   },
   {
     "nama": "Pull Up",
-    "deskripsi": "Latihan untuk melatih otot punggung dan lengan",
-    "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Pull-ups_(6142095).jpg"
+    "deskripsi": "Latihan menantang untuk meningkatkan kekuatan punggung, lengan, dan genggaman.",
+    "kategori": "Tubuh Atas",
+    "durasi_menit": 8,
+    "level": "Menengah",
+    "target": "Punggung, lengan, dan grip",
+    "image_url": "https://i.ibb.co/RkZdjp4q/pullup.png",
+    "video_url": "https://www.youtube.com/results?search_query=pull+up+tutorial+gerakan+singkat",
+    "steps": [
+      "Genggam palang sedikit lebih lebar dari bahu.",
+      "Tarik tubuh sampai dagu melewati palang.",
+      "Turunkan tubuh perlahan sampai lengan hampir lurus."
+    ]
   },
   {
     "nama": "Plank",
-    "deskripsi": "Latihan untuk melatih kekuatan core tubuh",
-    "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Plank.jpg"
+    "deskripsi": "Latihan isometrik untuk melatih stabilitas core dan postur tubuh.",
+    "kategori": "Core",
+    "durasi_menit": 4,
+    "level": "Pemula",
+    "target": "Core, bahu, dan stabilitas tubuh",
+    "image_url": "https://i.ibb.co/hFftDZB9/plank.png",
+    "video_url": "https://www.youtube.com/results?search_query=plank+tutorial+gerakan+singkat",
+    "steps": [
+      "Letakkan siku di bawah bahu dan luruskan tubuh.",
+      "Kencangkan perut agar pinggang tidak turun.",
+      "Tahan posisi sambil bernapas stabil."
+    ]
   },
   {
     "nama": "Squat",
-    "deskripsi": "Latihan untuk melatih otot paha dan kaki",
-    "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/A_U.S._Air_Force_Airman_performs_a_squat_exercise.jpg"
+    "deskripsi": "Latihan kaki untuk memperkuat paha, glute, dan keseimbangan tubuh.",
+    "kategori": "Kaki",
+    "durasi_menit": 7,
+    "level": "Ringan",
+    "target": "Paha, glute, dan kekuatan kaki",
+    "image_url": "https://i.ibb.co/7c8FMnt/squat.png",
+    "video_url": "https://www.youtube.com/results?search_query=squat+tutorial+gerakan+singkat",
+    "steps": [
+      "Buka kaki selebar bahu dan arahkan lutut mengikuti jari kaki.",
+      "Turunkan pinggul seperti duduk tanpa membungkukkan punggung.",
+      "Dorong tumit untuk kembali berdiri."
+    ]
+  },
+  {
+    "nama": "Lunges",
+    "deskripsi": "Latihan unilateral untuk melatih kaki, keseimbangan, dan kontrol gerak.",
+    "kategori": "Kaki",
+    "durasi_menit": 7,
+    "level": "Menengah",
+    "target": "Paha depan, hamstring, glute, dan keseimbangan",
+    "image_url": "https://i.ibb.co/HwPSx2M/lunges.png",
+    "video_url": "https://www.youtube.com/results?search_query=lunges+tutorial+gerakan+singkat",
+    "steps": [
+      "Langkahkan satu kaki ke depan dengan tubuh tetap tegak.",
+      "Turunkan badan sampai kedua lutut menekuk stabil.",
+      "Dorong kaki depan untuk kembali berdiri dan ganti sisi."
+    ]
+  },
+  {
+    "nama": "Mountain Climber",
+    "deskripsi": "Latihan full body tempo cepat untuk core, bahu, dan kardio.",
+    "kategori": "Full Body",
+    "durasi_menit": 6,
+    "level": "Menengah",
+    "target": "Core, bahu, paha, dan kardio",
+    "image_url": "https://i.ibb.co/Fk1w2vYp/mclimber.png",
+    "video_url": "https://www.youtube.com/results?search_query=mountain+climber+tutorial+gerakan+singkat",
+    "steps": [
+      "Mulai dari posisi plank tinggi dengan tangan sejajar bahu.",
+      "Tarik lutut kanan ke arah dada lalu kembalikan.",
+      "Ganti kaki secara bergantian dengan ritme terkontrol."
+    ]
   }
 ]
