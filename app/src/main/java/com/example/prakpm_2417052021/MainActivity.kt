@@ -29,6 +29,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -45,6 +57,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +68,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,6 +93,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import coil.compose.AsyncImage
 import com.example.prakpm_2417052021.data.model.Workout
 import com.example.prakpm_2417052021.data.repository.WorkoutRepository
@@ -87,10 +112,48 @@ class MainActivity : ComponentActivity() {
             PrakPM_2417052021Theme {
                 val navController = rememberNavController()
                 val snackbarHostState = remember { SnackbarHostState() }
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
-                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+                    bottomBar = {
+                        if (currentRoute == "home" || currentRoute == "profile") {
+                            NavigationBar(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                NavigationBarItem(
+                                    icon = { Icon(Icons.Filled.Home, contentDescription = null) },
+                                    label = { Text("Utama") },
+                                    selected = currentRoute == "home",
+                                    onClick = {
+                                        navController.navigate("home") {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                )
+                                NavigationBarItem(
+                                    icon = { Icon(Icons.Filled.Person, contentDescription = null) },
+                                    label = { Text("Profil") },
+                                    selected = currentRoute == "profile",
+                                    onClick = {
+                                        navController.navigate("profile") {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
                 ) { innerPadding ->
                     AppNavigation(
                         navController = navController,
@@ -103,41 +166,71 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+class WorkoutViewModel : ViewModel() {
+    private val repository = WorkoutRepository()
+
+    private val _workouts = MutableStateFlow<List<Workout>>(emptyList())
+    val workouts: StateFlow<List<Workout>> = _workouts.asStateFlow()
+
+    private val _favoriteNames = MutableStateFlow<Set<String>>(emptySet())
+    val favoriteNames: StateFlow<Set<String>> = _favoriteNames.asStateFlow()
+
+    private val _completedNames = MutableStateFlow<Set<String>>(emptySet())
+    val completedNames: StateFlow<Set<String>> = _completedNames.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _isError = MutableStateFlow(false)
+    val isError: StateFlow<Boolean> = _isError.asStateFlow()
+
+    init {
+        loadWorkouts()
+    }
+
+    fun loadWorkouts() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _isError.value = false
+            try {
+                val data = repository.getWorkouts()
+                _workouts.value = data
+                _isError.value = data.isEmpty()
+            } catch (_: Exception) {
+                _workouts.value = emptyList()
+                _isError.value = true
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun toggleFavorite(workout: Workout) {
+        val currentFavorites = _favoriteNames.value
+        _favoriteNames.value = if (currentFavorites.contains(workout.nama)) {
+            currentFavorites - workout.nama
+        } else {
+            currentFavorites + workout.nama
+        }
+    }
+
+    fun markCompleted(workout: Workout) {
+        _completedNames.value = _completedNames.value + workout.nama
+    }
+}
+
 @Composable
 fun AppNavigation(
     navController: NavHostController,
     snackbarHostState: SnackbarHostState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: WorkoutViewModel = viewModel()
 ) {
-    val repository = remember { WorkoutRepository() }
-    var workouts by remember { mutableStateOf<List<Workout>>(emptyList()) }
-    var favoriteNames by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var completedNames by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var isError by remember { mutableStateOf(false) }
-    var reloadKey by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(reloadKey) {
-        isLoading = true
-        isError = false
-        try {
-            workouts = repository.getWorkouts()
-            isError = workouts.isEmpty()
-        } catch (_: Exception) {
-            workouts = emptyList()
-            isError = true
-        } finally {
-            isLoading = false
-        }
-    }
-
-    val toggleFavorite: (Workout) -> Unit = { workout ->
-        favoriteNames = if (favoriteNames.contains(workout.nama)) {
-            favoriteNames - workout.nama
-        } else {
-            favoriteNames + workout.nama
-        }
-    }
+    val workouts by viewModel.workouts.collectAsState()
+    val favoriteNames by viewModel.favoriteNames.collectAsState()
+    val completedNames by viewModel.completedNames.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val isError by viewModel.isError.collectAsState()
 
     NavHost(navController = navController, startDestination = "home", modifier = modifier) {
         composable("home") {
@@ -147,10 +240,13 @@ fun AppNavigation(
                 completedCount = completedNames.size,
                 isLoading = isLoading,
                 isError = isError,
-                onRetry = { reloadKey++ },
-                onToggleFavorite = toggleFavorite,
+                onRetry = { viewModel.loadWorkouts() },
+                onToggleFavorite = { viewModel.toggleFavorite(it) },
                 navController = navController
             )
+        }
+        composable("profile") {
+            ProfileScreen()
         }
         composable(
             route = "detail/{workoutName}",
@@ -164,10 +260,8 @@ fun AppNavigation(
                     isFavorite = favoriteNames.contains(workout.nama),
                     snackbarHostState = snackbarHostState,
                     navController = navController,
-                    onToggleFavorite = { toggleFavorite(workout) },
-                    onWorkoutCompleted = {
-                        completedNames = completedNames + workout.nama
-                    }
+                    onToggleFavorite = { viewModel.toggleFavorite(workout) },
+                    onWorkoutCompleted = { viewModel.markCompleted(workout) }
                 )
             } else {
                 DetailNotFound(navController = navController)
@@ -280,14 +374,16 @@ fun WorkoutContent(
     navController: NavController
 ) {
     var selectedCategory by remember(workouts) { mutableStateOf("Semua") }
+    var searchQuery by remember { mutableStateOf("") }
+    
     val categories = remember(workouts) {
         listOf("Semua") + workouts.map { it.categoryLabel() }.distinct()
     }
-    val filteredWorkouts = remember(workouts, selectedCategory) {
-        if (selectedCategory == "Semua") {
-            workouts
-        } else {
-            workouts.filter { it.categoryLabel() == selectedCategory }
+    val filteredWorkouts = remember(workouts, selectedCategory, searchQuery) {
+        workouts.filter {
+            val matchesCategory = selectedCategory == "Semua" || it.categoryLabel() == selectedCategory
+            val matchesSearch = it.nama.contains(searchQuery, ignoreCase = true)
+            matchesCategory && matchesSearch
         }
     }
     val todayPlan = remember(workouts) { workouts.take(DailyWorkoutGoal) }
@@ -302,6 +398,16 @@ fun WorkoutContent(
                 completedCount = completedCount,
                 favoriteCount = favoriteNames.size,
                 planMinutes = todayPlan.sumOf { it.durationValue() }
+            )
+        }
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Cari latihan...") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                shape = RoundedCornerShape(12.dp)
             )
         }
 
@@ -889,5 +995,166 @@ private fun Workout.stepList(): List<String> {
             "Lakukan gerakan secara terkontrol sesuai kemampuan.",
             "Berhenti jika terasa nyeri tajam atau pusing."
         )
+    }
+}
+
+@Composable
+fun ProfileScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Profil Saya",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 24.dp, top = 8.dp)
+        )
+        
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "Revaldo Aja",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "NPM: 2417052021",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Pemrograman Mobile SI 2026",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        
+        Text(
+            text = "Pengaturan",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column {
+                ProfileSettingItem(
+                    icon = Icons.Filled.Settings,
+                    title = "Pengaturan Akun"
+                )
+                ProfileSettingItem(
+                    icon = Icons.Filled.Notifications,
+                    title = "Notifikasi"
+                )
+                ProfileSettingItem(
+                    icon = Icons.Filled.Lock,
+                    title = "Privasi & Keamanan"
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Text(
+            text = "Lainnya",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column {
+                ProfileSettingItem(
+                    icon = Icons.Filled.Info,
+                    title = "Bantuan & Dukungan"
+                )
+                ProfileSettingItem(
+                    icon = Icons.Filled.ExitToApp,
+                    title = "Keluar",
+                    isDestructive = true
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun ProfileSettingItem(
+    icon: ImageVector,
+    title: String,
+    isDestructive: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+        if (!isDestructive) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline
+            )
+        }
     }
 }
