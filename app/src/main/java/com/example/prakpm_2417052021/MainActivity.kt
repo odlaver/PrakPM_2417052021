@@ -1,5 +1,7 @@
 package com.example.prakpm_2417052021
 
+import android.app.Application
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -38,8 +40,11 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -69,6 +74,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -99,6 +105,9 @@ import coil.compose.AsyncImage
 import com.example.prakpm_2417052021.data.model.Workout
 import com.example.prakpm_2417052021.data.repository.WorkoutRepository
 import com.example.prakpm_2417052021.ui.theme.PrakPM_2417052021Theme
+import com.example.prakpm_2417052021.ui.theme.CustomPrimary
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -119,7 +128,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
                     bottomBar = {
-                        if (currentRoute == "home" || currentRoute == "profile") {
+                        if (currentRoute == "home" || currentRoute == "activity" || currentRoute == "bmi" || currentRoute == "profile") {
                             NavigationBar(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant
                             ) {
@@ -129,6 +138,34 @@ class MainActivity : ComponentActivity() {
                                     selected = currentRoute == "home",
                                     onClick = {
                                         navController.navigate("home") {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                )
+                                NavigationBarItem(
+                                    icon = { Icon(Icons.Filled.List, contentDescription = null) },
+                                    label = { Text("Aktivitas") },
+                                    selected = currentRoute == "activity",
+                                    onClick = {
+                                        navController.navigate("activity") {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                )
+                                NavigationBarItem(
+                                    icon = { Icon(Icons.Filled.Star, contentDescription = null) },
+                                    label = { Text("BMI") },
+                                    selected = currentRoute == "bmi",
+                                    onClick = {
+                                        navController.navigate("bmi") {
                                             popUpTo(navController.graph.findStartDestination().id) {
                                                 saveState = true
                                             }
@@ -166,14 +203,26 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-class WorkoutViewModel : ViewModel() {
+data class CompletedWorkout(
+    val name: String,
+    val timestamp: Long,
+    val durationMinutes: Int,
+    val category: String
+)
+
+class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = WorkoutRepository()
+    private val sharedPrefs = getApplication<Application>().getSharedPreferences("prakpm_prefs", Context.MODE_PRIVATE)
+    private val gson = Gson()
 
     private val _workouts = MutableStateFlow<List<Workout>>(emptyList())
     val workouts: StateFlow<List<Workout>> = _workouts.asStateFlow()
 
     private val _favoriteNames = MutableStateFlow<Set<String>>(emptySet())
     val favoriteNames: StateFlow<Set<String>> = _favoriteNames.asStateFlow()
+
+    private val _completedWorkouts = MutableStateFlow<List<CompletedWorkout>>(emptyList())
+    val completedWorkouts: StateFlow<List<CompletedWorkout>> = _completedWorkouts.asStateFlow()
 
     private val _completedNames = MutableStateFlow<Set<String>>(emptySet())
     val completedNames: StateFlow<Set<String>> = _completedNames.asStateFlow()
@@ -185,6 +234,17 @@ class WorkoutViewModel : ViewModel() {
     val isError: StateFlow<Boolean> = _isError.asStateFlow()
 
     init {
+        val favJson = sharedPrefs.getString("favorites", "[]")
+        val favType = object : TypeToken<Set<String>>() {}.type
+        val savedFavorites: Set<String> = gson.fromJson(favJson, favType) ?: emptySet()
+        _favoriteNames.value = savedFavorites
+
+        val compJson = sharedPrefs.getString("completed_workouts", "[]")
+        val compType = object : TypeToken<List<CompletedWorkout>>() {}.type
+        val savedCompleted: List<CompletedWorkout> = gson.fromJson(compJson, compType) ?: emptyList()
+        _completedWorkouts.value = savedCompleted
+        _completedNames.value = savedCompleted.map { it.name }.toSet()
+
         loadWorkouts()
     }
 
@@ -207,15 +267,66 @@ class WorkoutViewModel : ViewModel() {
 
     fun toggleFavorite(workout: Workout) {
         val currentFavorites = _favoriteNames.value
-        _favoriteNames.value = if (currentFavorites.contains(workout.nama)) {
+        val newFavorites = if (currentFavorites.contains(workout.nama)) {
             currentFavorites - workout.nama
         } else {
             currentFavorites + workout.nama
         }
+        _favoriteNames.value = newFavorites
+        sharedPrefs.edit().putString("favorites", gson.toJson(newFavorites)).apply()
     }
 
     fun markCompleted(workout: Workout) {
+        val newCompletedList = _completedWorkouts.value + CompletedWorkout(
+            name = workout.nama,
+            timestamp = System.currentTimeMillis(),
+            durationMinutes = workout.durationValue(),
+            category = workout.categoryLabel()
+        )
+        _completedWorkouts.value = newCompletedList
         _completedNames.value = _completedNames.value + workout.nama
+        sharedPrefs.edit().putString("completed_workouts", gson.toJson(newCompletedList)).apply()
+    }
+
+    fun clearHistory() {
+        _completedWorkouts.value = emptyList()
+        _completedNames.value = emptySet()
+        sharedPrefs.edit().remove("completed_workouts").apply()
+    }
+
+    fun getWorkoutStreak(workouts: List<CompletedWorkout>): Int {
+        if (workouts.isEmpty()) return 0
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val days = workouts.map { sdf.format(java.util.Date(it.timestamp)) }.toSet()
+        var streak = 0
+        val cal = java.util.Calendar.getInstance()
+        while (true) {
+            val dateStr = sdf.format(cal.time)
+            if (days.contains(dateStr)) {
+                streak++
+                cal.add(java.util.Calendar.DATE, -1)
+            } else {
+                if (streak == 0) {
+                    cal.add(java.util.Calendar.DATE, -1)
+                    val yesterdayStr = sdf.format(cal.time)
+                    if (days.contains(yesterdayStr)) {
+                        cal.add(java.util.Calendar.DATE, -1)
+                        streak = 1
+                        while (true) {
+                            val nextDateStr = sdf.format(cal.time)
+                            if (days.contains(nextDateStr)) {
+                                streak++
+                                cal.add(java.util.Calendar.DATE, -1)
+                            } else {
+                                break
+                            }
+                        }
+                    }
+                }
+                break
+            }
+        }
+        return streak
     }
 }
 
@@ -228,20 +339,40 @@ fun AppNavigation(
 ) {
     val workouts by viewModel.workouts.collectAsState()
     val favoriteNames by viewModel.favoriteNames.collectAsState()
-    val completedNames by viewModel.completedNames.collectAsState()
+    val completedWorkouts by viewModel.completedWorkouts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isError by viewModel.isError.collectAsState()
+
+    val completedTodayCount = remember(completedWorkouts) {
+        val sdf = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
+        val todayStr = sdf.format(java.util.Date())
+        completedWorkouts.count { sdf.format(java.util.Date(it.timestamp)) == todayStr }
+    }
 
     NavHost(navController = navController, startDestination = "home", modifier = modifier) {
         composable("home") {
             WorkoutList(
                 workouts = workouts,
                 favoriteNames = favoriteNames,
-                completedCount = completedNames.size,
+                completedCount = completedTodayCount,
                 isLoading = isLoading,
                 isError = isError,
                 onRetry = { viewModel.loadWorkouts() },
                 onToggleFavorite = { viewModel.toggleFavorite(it) },
+                navController = navController
+            )
+        }
+        composable("activity") {
+            ActivityScreen(
+                workouts = workouts,
+                favoriteNames = favoriteNames,
+                viewModel = viewModel,
+                navController = navController
+            )
+        }
+        composable("bmi") {
+            BmiScreen(
+                workouts = workouts,
                 navController = navController
             )
         }
@@ -1155,6 +1286,531 @@ fun ProfileSettingItem(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.outline
             )
+        }
+    }
+}
+
+@Composable
+fun WeeklyProgressChart(completedWorkouts: List<CompletedWorkout>) {
+    val sdfDay = java.text.SimpleDateFormat("E", java.util.Locale("id", "ID"))
+    val sdfDate = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
+    val last7Days = remember(completedWorkouts) {
+        val list = mutableListOf<Pair<String, Int>>()
+        val cal = java.util.Calendar.getInstance()
+        cal.add(java.util.Calendar.DATE, -6)
+        for (i in 0..6) {
+            val dateStr = sdfDate.format(cal.time)
+            val rawLabel = sdfDay.format(cal.time)
+            val dayLabel = if (rawLabel.length > 3) rawLabel.substring(0, 3) else rawLabel
+            val count = completedWorkouts.count { sdfDate.format(java.util.Date(it.timestamp)) == dateStr }
+            list.add(Pair(dayLabel, count))
+            cal.add(java.util.Calendar.DATE, 1)
+        }
+        list
+    }
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Aktivitas 7 Hari Terakhir",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                last7Days.forEach { (day, count) ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        val maxCount = 5
+                        val heightFactor = (count.toFloat() / maxCount).coerceIn(0.1f, 1f)
+                        val barHeight = 80.dp * heightFactor
+                        Box(
+                            modifier = Modifier
+                                .width(14.dp)
+                                .height(barHeight)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (count > 0) MaterialTheme.colorScheme.primary 
+                                    else MaterialTheme.colorScheme.outlineVariant
+                                )
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = day,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ActivityScreen(
+    workouts: List<Workout>,
+    favoriteNames: Set<String>,
+    viewModel: WorkoutViewModel,
+    navController: NavController
+) {
+    val completedWorkouts by viewModel.completedWorkouts.collectAsState()
+    val totalSessions = completedWorkouts.size
+    val totalMinutes = completedWorkouts.sumOf { it.durationMinutes }
+    val streak = remember(completedWorkouts) { viewModel.getWorkoutStreak(completedWorkouts) }
+    val favoriteWorkouts = remember(workouts, favoriteNames) {
+        workouts.filter { favoriteNames.contains(it.nama) }
+    }
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Text(
+                text = "Aktivitas Saya",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 8.dp, top = 8.dp)
+            )
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SummaryCard(
+                    title = "Total Sesi",
+                    value = "$totalSessions",
+                    modifier = Modifier.weight(1f)
+                )
+                SummaryCard(
+                    title = "Total Waktu",
+                    value = "$totalMinutes mnt",
+                    modifier = Modifier.weight(1f)
+                )
+                SummaryCard(
+                    title = "Streak",
+                    value = "$streak hari",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        item {
+            WeeklyProgressChart(completedWorkouts = completedWorkouts)
+        }
+        item {
+            Text(
+                text = "Latihan Favorit",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        if (favoriteWorkouts.isEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.FavoriteBorder,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Belum ada latihan favorit.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(favoriteWorkouts) { workout ->
+                        WorkoutRowItem(
+                            workout = workout,
+                            isFavorite = true,
+                            onToggleFavorite = { viewModel.toggleFavorite(workout) },
+                            navController = navController
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Riwayat Latihan",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (completedWorkouts.isNotEmpty()) {
+                    Text(
+                        text = "Hapus Semua",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.clickable { viewModel.clearHistory() }
+                    )
+                }
+            }
+        }
+        if (completedWorkouts.isEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Belum ada riwayat latihan. Mulai latihan hari ini!",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            items(completedWorkouts.reversed()) { completed ->
+                val dateFormatted = remember(completed.timestamp) {
+                    val sdf = java.text.SimpleDateFormat("dd MMM, HH:mm", java.util.Locale("id", "ID"))
+                    sdf.format(java.util.Date(completed.timestamp))
+                }
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = completed.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${completed.category} • ${completed.durationMinutes} mnt",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = dateFormatted,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BmiScreen(
+    workouts: List<Workout>,
+    navController: NavController
+) {
+    var weight by remember { mutableStateOf(65f) }
+    var height by remember { mutableStateOf(165f) }
+    var bmiResult by remember { mutableStateOf<Float?>(null) }
+    var bmiStatus by remember { mutableStateOf("") }
+    var bmiAdvice by remember { mutableStateOf("") }
+    var bmiColor by remember { mutableStateOf(CustomPrimary) }
+    var recommendedWorkouts by remember { mutableStateOf<List<Workout>>(emptyList()) }
+    val calculateBmi = {
+        val heightInMeters = height / 100f
+        val score = weight / (heightInMeters * heightInMeters)
+        bmiResult = score
+        when {
+            score < 18.5f -> {
+                bmiStatus = "Kurus"
+                bmiAdvice = "Berat badan Anda kurang. Disarankan untuk menambah asupan kalori sehat dan fokus pada latihan kekuatan untuk membangun massa otot."
+                bmiColor = Color(0xFFC87555)
+                recommendedWorkouts = workouts.filter { 
+                    val n = it.nama.lowercase()
+                    n.contains("push") || n.contains("pull") || n.contains("squat")
+                }
+            }
+            score >= 18.5f && score < 25f -> {
+                bmiStatus = "Ideal"
+                bmiAdvice = "Luar biasa! Berat badan Anda ideal. Pertahankan kondisi fisik Anda dengan kombinasi latihan kekuatan, core, dan fleksibilitas secara rutin."
+                bmiColor = CustomPrimary
+                recommendedWorkouts = workouts.filter {
+                    val n = it.nama.lowercase()
+                    n.contains("plank") || n.contains("sit") || n.contains("squat")
+                }
+            }
+            score >= 25f && score < 30f -> {
+                bmiStatus = "Berlebih"
+                bmiAdvice = "Berat badan Anda berlebih. Cobalah kurangi asupan kalori berlebih dan tingkatkan aktivitas kardio serta latihan kekuatan tubuh."
+                bmiColor = Color(0xFFD68A37)
+                recommendedWorkouts = workouts.filter {
+                    val n = it.nama.lowercase()
+                    n.contains("mountain") || n.contains("lunge") || n.contains("plank")
+                }
+            }
+            else -> {
+                bmiStatus = "Obesitas"
+                bmiAdvice = "Kategori Obesitas. Disarankan untuk berkonsultasi dengan ahli gizi dan memulai latihan fisik ringan secara konsisten demi kesehatan jantung Anda."
+                bmiColor = Color(0xFFB3261E)
+                recommendedWorkouts = workouts.filter {
+                    val n = it.nama.lowercase()
+                    n.contains("mountain") || n.contains("lunge") || n.contains("plank")
+                }
+            }
+        }
+    }
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Text(
+                text = "Kalkulator BMI",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 8.dp, top = 8.dp)
+            )
+        }
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Berat Badan",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${weight.toInt()} kg",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row {
+                            IconButton(onClick = { weight = (weight - 1).coerceAtLeast(30f) }) {
+                                Text("-", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            }
+                            IconButton(onClick = { weight = (weight + 1).coerceAtMost(150f) }) {
+                                Text("+", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    androidx.compose.material3.Slider(
+                        value = weight,
+                        onValueChange = { weight = it },
+                        valueRange = 30f..150f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Tinggi Badan",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${height.toInt()} cm",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row {
+                            IconButton(onClick = { height = (height - 1).coerceAtLeast(100f) }) {
+                                Text("-", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            }
+                            IconButton(onClick = { height = (height + 1).coerceAtMost(220f) }) {
+                                Text("+", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    androidx.compose.material3.Slider(
+                        value = height,
+                        onValueChange = { height = it },
+                        valueRange = 100f..220f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+        item {
+            Button(
+                onClick = calculateBmi,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Hitung BMI", style = MaterialTheme.typography.titleMedium)
+            }
+        }
+        bmiResult?.let { score ->
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(2.dp, bmiColor),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Skor BMI Anda",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = String.format(java.util.Locale.US, "%.1f", score),
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Black,
+                            color = bmiColor,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                        Surface(
+                            color = bmiColor,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        ) {
+                            Text(
+                                text = bmiStatus,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            )
+                        }
+                        Text(
+                            text = bmiAdvice,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+            if (recommendedWorkouts.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Rekomendasi Latihan",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(recommendedWorkouts) { workout ->
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                modifier = Modifier
+                                    .width(150.dp)
+                                    .clickable { navController.navigate("detail/${Uri.encode(workout.nama)}") }
+                            ) {
+                                Column {
+                                    WorkoutImage(
+                                        workout = workout,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(90.dp)
+                                    )
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text(
+                                            text = workout.nama,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${workout.durationValue()} mnt • ${workout.levelLabel()}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
