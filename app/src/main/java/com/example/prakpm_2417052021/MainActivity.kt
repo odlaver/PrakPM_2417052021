@@ -42,6 +42,10 @@ import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
@@ -878,8 +882,165 @@ fun DetailScreen(
     onWorkoutCompleted: () -> Unit
 ) {
     var isLoading by remember { mutableStateOf(false) }
+    var showTimer by remember { mutableStateOf(false) }
+    var secondsLeft by remember { mutableIntStateOf(30) }
+    var isTimerRunning by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(isTimerRunning, secondsLeft, showTimer) {
+        if (showTimer && isTimerRunning && secondsLeft > 0) {
+            delay(1000)
+            secondsLeft--
+        }
+    }
+
+    LaunchedEffect(secondsLeft, showTimer) {
+        if (showTimer && secondsLeft == 0) {
+            try {
+                val toneG = android.media.ToneGenerator(android.media.AudioManager.STREAM_ALARM, 100)
+                toneG.startTone(android.media.ToneGenerator.TONE_CDMA_PIP, 150)
+            } catch (_: Exception) {}
+            try {
+                val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(300, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    vibrator.vibrate(300)
+                }
+            } catch (_: Exception) {}
+            onWorkoutCompleted()
+            snackbarHostState.showSnackbar("Latihan ${workout.nama} selesai! Kerja bagus!")
+            showTimer = false
+        }
+    }
+
+    if (showTimer) {
+        Dialog(
+            onDismissRequest = { showTimer = false },
+            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = workout.nama,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Lakukan gerakan dengan benar dan teratur",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(160.dp)
+                    ) {
+                        val progress = secondsLeft.toFloat() / 30f
+                        CircularProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 10.dp,
+                            trackColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "$secondsLeft",
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "detik",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { isTimerRunning = !isTimerRunning },
+                            modifier = Modifier
+                                .size(56.dp)
+                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                        ) {
+                            if (isTimerRunning) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.size(width = 6.dp, height = 18.dp).background(MaterialTheme.colorScheme.primary))
+                                    Box(modifier = Modifier.size(width = 6.dp, height = 18.dp).background(MaterialTheme.colorScheme.primary))
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.PlayArrow,
+                                    contentDescription = "Play",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = {
+                                secondsLeft = 30
+                                isTimerRunning = true
+                            },
+                            modifier = Modifier
+                                .size(56.dp)
+                                .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = "Reset",
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showTimer = false },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Batal")
+                        }
+                        Button(
+                            onClick = {
+                                onWorkoutCompleted()
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Latihan ${workout.nama} selesai! Kerja bagus!")
+                                }
+                                showTimer = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Lewati")
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -970,6 +1131,19 @@ fun DetailScreen(
 
         Button(
             onClick = {
+                secondsLeft = 30
+                isTimerRunning = true
+                showTimer = true
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Mulai Latihan (30s Timer)")
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(
+            onClick = {
                 scope.launch {
                     isLoading = true
                     delay(2000)
@@ -979,18 +1153,19 @@ fun DetailScreen(
                 }
             },
             enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors()
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = MaterialTheme.colorScheme.primary,
                     strokeWidth = 2.dp
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Menyimpan progres...")
             } else {
-                Text("Tandai Selesai")
+                Text("Tandai Selesai Instan")
             }
         }
 
