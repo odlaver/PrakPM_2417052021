@@ -237,6 +237,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _isError = MutableStateFlow(false)
     val isError: StateFlow<Boolean> = _isError.asStateFlow()
 
+    private val _dailyGoalMinutes = MutableStateFlow(15)
+    val dailyGoalMinutes: StateFlow<Int> = _dailyGoalMinutes.asStateFlow()
+
+    private val _waterIntake = MutableStateFlow(0)
+    val waterIntake: StateFlow<Int> = _waterIntake.asStateFlow()
+
     init {
         val favJson = sharedPrefs.getString("favorites", "[]")
         val favType = object : TypeToken<Set<String>>() {}.type
@@ -248,6 +254,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val savedCompleted: List<CompletedWorkout> = gson.fromJson(compJson, compType) ?: emptyList()
         _completedWorkouts.value = savedCompleted
         _completedNames.value = savedCompleted.map { it.name }.toSet()
+
+        val todayStr = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault()).format(java.util.Date())
+        _waterIntake.value = sharedPrefs.getInt("water_$todayStr", 0)
+        _dailyGoalMinutes.value = sharedPrefs.getInt("daily_goal_minutes", 15)
 
         loadWorkouts()
     }
@@ -332,6 +342,25 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
         return streak
     }
+
+    fun updateDailyGoal(minutes: Int) {
+        _dailyGoalMinutes.value = minutes
+        sharedPrefs.edit().putInt("daily_goal_minutes", minutes).apply()
+    }
+
+    fun incrementWater() {
+        val todayStr = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault()).format(java.util.Date())
+        val newval = (_waterIntake.value + 1).coerceAtMost(12)
+        _waterIntake.value = newval
+        sharedPrefs.edit().putInt("water_$todayStr", newval).apply()
+    }
+
+    fun decrementWater() {
+        val todayStr = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault()).format(java.util.Date())
+        val newval = (_waterIntake.value - 1).coerceAtLeast(0)
+        _waterIntake.value = newval
+        sharedPrefs.edit().putInt("water_$todayStr", newval).apply()
+    }
 }
 
 @Composable
@@ -346,11 +375,19 @@ fun AppNavigation(
     val completedWorkouts by viewModel.completedWorkouts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isError by viewModel.isError.collectAsState()
+    val dailyGoalMinutes by viewModel.dailyGoalMinutes.collectAsState()
+    val waterIntake by viewModel.waterIntake.collectAsState()
 
     val completedTodayCount = remember(completedWorkouts) {
         val sdf = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
         val todayStr = sdf.format(java.util.Date())
         completedWorkouts.count { sdf.format(java.util.Date(it.timestamp)) == todayStr }
+    }
+
+    val completedTodayMinutes = remember(completedWorkouts) {
+        val sdf = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
+        val todayStr = sdf.format(java.util.Date())
+        completedWorkouts.filter { sdf.format(java.util.Date(it.timestamp)) == todayStr }.sumOf { it.durationMinutes }
     }
 
     NavHost(navController = navController, startDestination = "home", modifier = modifier) {
@@ -359,6 +396,10 @@ fun AppNavigation(
                 workouts = workouts,
                 favoriteNames = favoriteNames,
                 completedCount = completedTodayCount,
+                completedTodayMinutes = completedTodayMinutes,
+                dailyGoalMinutes = dailyGoalMinutes,
+                waterIntake = waterIntake,
+                viewModel = viewModel,
                 isLoading = isLoading,
                 isError = isError,
                 onRetry = { viewModel.loadWorkouts() },
@@ -381,7 +422,10 @@ fun AppNavigation(
             )
         }
         composable("profile") {
-            ProfileScreen()
+            ProfileScreen(
+                dailyGoalMinutes = dailyGoalMinutes,
+                onUpdateGoal = { viewModel.updateDailyGoal(it) }
+            )
         }
         composable(
             route = "detail/{workoutName}",
@@ -406,10 +450,101 @@ fun AppNavigation(
 }
 
 @Composable
+fun WaterTrackerCard(
+    waterIntake: Int,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFDDE8CC)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Pelacak Minum Air",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Hidrasi tubuh Anda agar performa tetap maksimal harian.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "$waterIntake / 8 Gelas",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (waterIntake >= 8) {
+                        Text(
+                            text = "Kebutuhan air harian tercapai! 💧",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(
+                        onClick = onDecrement,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color.White, CircleShape)
+                    ) {
+                        Text("-", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                    IconButton(
+                        onClick = onIncrement,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                    ) {
+                        Text("+", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                for (i in 1..8) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                if (i <= waterIntake) MaterialTheme.colorScheme.primary 
+                                else MaterialTheme.colorScheme.outlineVariant
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun WorkoutList(
     workouts: List<Workout>,
     favoriteNames: Set<String>,
     completedCount: Int,
+    completedTodayMinutes: Int,
+    dailyGoalMinutes: Int,
+    waterIntake: Int,
+    viewModel: WorkoutViewModel,
     isLoading: Boolean,
     isError: Boolean,
     onRetry: () -> Unit,
@@ -424,6 +559,10 @@ fun WorkoutList(
             workouts = workouts,
             favoriteNames = favoriteNames,
             completedCount = completedCount,
+            completedTodayMinutes = completedTodayMinutes,
+            dailyGoalMinutes = dailyGoalMinutes,
+            waterIntake = waterIntake,
+            viewModel = viewModel,
             onToggleFavorite = onToggleFavorite,
             modifier = modifier,
             navController = navController
@@ -504,13 +643,16 @@ fun WorkoutContent(
     workouts: List<Workout>,
     favoriteNames: Set<String>,
     completedCount: Int,
+    completedTodayMinutes: Int,
+    dailyGoalMinutes: Int,
+    waterIntake: Int,
+    viewModel: WorkoutViewModel,
     onToggleFavorite: (Workout) -> Unit,
     modifier: Modifier = Modifier,
     navController: NavController
 ) {
     var selectedCategory by remember(workouts) { mutableStateOf("Semua") }
     var searchQuery by remember { mutableStateOf("") }
-    
     val categories = remember(workouts) {
         listOf("Semua") + workouts.map { it.categoryLabel() }.distinct()
     }
@@ -522,7 +664,6 @@ fun WorkoutContent(
         }
     }
     val todayPlan = remember(workouts) { workouts.take(DailyWorkoutGoal) }
-
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -532,7 +673,15 @@ fun WorkoutContent(
             DashboardHeader(
                 completedCount = completedCount,
                 favoriteCount = favoriteNames.size,
-                planMinutes = todayPlan.sumOf { it.durationValue() }
+                completedMinutes = completedTodayMinutes,
+                dailyGoalMinutes = dailyGoalMinutes
+            )
+        }
+        item {
+            WaterTrackerCard(
+                waterIntake = waterIntake,
+                onIncrement = { viewModel.incrementWater() },
+                onDecrement = { viewModel.decrementWater() }
             )
         }
         item {
@@ -545,7 +694,6 @@ fun WorkoutContent(
                 shape = RoundedCornerShape(12.dp)
             )
         }
-
         item {
             SectionTitle(
                 title = "Fokus Hari Ini",
@@ -563,7 +711,6 @@ fun WorkoutContent(
                 }
             }
         }
-
         item {
             SectionTitle(
                 title = "Pilih Fokus",
@@ -580,14 +727,12 @@ fun WorkoutContent(
                 }
             }
         }
-
         item {
             SectionTitle(
                 title = "Semua Latihan",
                 subtitle = "${filteredWorkouts.size} latihan tersedia"
             )
         }
-
         items(filteredWorkouts) { workout ->
             WorkoutItem(
                 workout = workout,
@@ -603,7 +748,8 @@ fun WorkoutContent(
 fun DashboardHeader(
     completedCount: Int,
     favoriteCount: Int,
-    planMinutes: Int
+    completedMinutes: Int,
+    dailyGoalMinutes: Int
 ) {
     Card(
         shape = RoundedCornerShape(8.dp),
@@ -637,12 +783,12 @@ fun DashboardHeader(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SummaryCard(
                     title = "Sesi",
-                    value = "${completedCount.coerceAtMost(DailyWorkoutGoal)}/$DailyWorkoutGoal",
+                    value = "$completedCount",
                     modifier = Modifier.weight(1f)
                 )
                 SummaryCard(
-                    title = "Durasi",
-                    value = "$planMinutes mnt",
+                    title = "Target",
+                    value = "$completedMinutes/$dailyGoalMinutes mnt",
                     modifier = Modifier.weight(1f)
                 )
                 SummaryCard(
@@ -653,7 +799,7 @@ fun DashboardHeader(
             }
             Spacer(modifier = Modifier.height(12.dp))
             LinearProgressIndicator(
-                progress = { completedCount.coerceAtMost(DailyWorkoutGoal).toFloat() / DailyWorkoutGoal },
+                progress = { if (dailyGoalMinutes > 0) (completedMinutes.toFloat() / dailyGoalMinutes).coerceAtMost(1f) else 0f },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp)
@@ -1305,7 +1451,10 @@ private fun Workout.stepList(): List<String> {
 }
 
 @Composable
-fun ProfileScreen() {
+fun ProfileScreen(
+    dailyGoalMinutes: Int = 15,
+    onUpdateGoal: (Int) -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1320,6 +1469,38 @@ fun ProfileScreen() {
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(bottom = 24.dp, top = 8.dp)
         )
+
+        Text(
+            text = "Target Waktu Harian",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Target aktif saat ini: $dailyGoalMinutes menit/hari",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(listOf(5, 10, 15, 20, 30, 45, 60)) { mins ->
+                        FilterChip(
+                            selected = dailyGoalMinutes == mins,
+                            onClick = { onUpdateGoal(mins) },
+                            label = { Text("$mins mnt") }
+                        )
+                    }
+                }
+            }
+        }
         
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -1584,6 +1765,9 @@ fun ActivityScreen(
         }
         item {
             WeeklyProgressChart(completedWorkouts = completedWorkouts)
+        }
+        item {
+            CategoryDonutChart(completedWorkouts = completedWorkouts)
         }
         item {
             Text(
@@ -1980,6 +2164,103 @@ fun BmiScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CategoryDonutChart(completedWorkouts: List<CompletedWorkout>) {
+    val categoryCounts = remember(completedWorkouts) {
+        val map = mutableMapOf<String, Int>()
+        completedWorkouts.forEach {
+            map[it.category] = (map[it.category] ?: 0) + 1
+        }
+        map
+    }
+    val total = remember(categoryCounts) { categoryCounts.values.sum().toFloat() }
+    val colors = listOf(
+        CustomPrimary,
+        Color(0xFF99AD7A),
+        Color(0xFFC87555),
+        Color(0xFFD68A37)
+    )
+    val categories = listOf("Tubuh Atas", "Core", "Kaki", "Full Body")
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Proporsi Kategori Latihan",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            if (total == 0f) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Belum ada data latihan untuk dianalisis.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    androidx.compose.foundation.Canvas(
+                        modifier = Modifier.size(100.dp)
+                    ) {
+                        var startAngle = -90f
+                        categories.forEachIndexed { index, cat ->
+                            val count = categoryCounts[cat] ?: 0
+                            if (count > 0) {
+                                val sweepAngle = (count.toFloat() / total) * 360f
+                                drawArc(
+                                    color = colors[index % colors.size],
+                                    startAngle = startAngle,
+                                    sweepAngle = sweepAngle,
+                                    useCenter = false,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 24f)
+                                )
+                                startAngle += sweepAngle
+                            }
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        categories.forEachIndexed { index, cat ->
+                            val count = categoryCounts[cat] ?: 0
+                            val pct = if (total > 0f) (count.toFloat() / total * 100).toInt() else 0
+                            if (count > 0) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .clip(CircleShape)
+                                            .background(colors[index % colors.size])
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "$cat: $count ($pct%)",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
                         }
